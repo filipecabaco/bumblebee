@@ -287,7 +287,8 @@ defmodule Bumblebee do
     * `{:local, directory}` - the directory containing model files
 
   """
-  @type repository :: {:hf, String.t()} | {:hf, String.t(), keyword()} | {:local, Path.t()}
+  @type repository ::
+          {:hf, String.t()} | {:hf, String.t(), keyword()} | {:local, Path.t()} | {:s3, URI.t()}
 
   @typedoc """
   A model together with its state and metadata.
@@ -1197,6 +1198,22 @@ defmodule Bumblebee do
     end
   end
 
+  defp get_repo_files({:s3, path}) do
+    case Req.new() |> ReqS3.attach() |> Req.get(path) do
+      {:ok, filenames} ->
+        repo_files =
+          for filename <- filenames,
+              Path.extname(filename) != "",
+              into: %{},
+              do: {filename, nil}
+
+        {:ok, repo_files}
+
+      {:error, reason} ->
+        {:error, "could not download from #{path}, reason: #{:file.format_error(reason)}"}
+    end
+  end
+
   defp get_repo_files({:hf, repository_id, opts}) do
     subdir = opts[:subdir]
     url = HuggingFace.Hub.file_listing_url(repository_id, subdir, opts[:revision])
@@ -1240,6 +1257,21 @@ defmodule Bumblebee do
     end
   end
 
+  defp download({:s3, path}, filename, _) do
+    path = Path.join([path, filename])
+
+    case Req.new() |> ReqS3.attach() |> Req.get(path) do
+      {:ok, %{body: body}} ->
+        path = Path.join([cache_dir(), filename])
+        File.write!(path, body)
+
+        {:ok, path}
+
+      _ ->
+        {:error, "s3 file #{inspect(path)} does not exist"}
+    end
+  end
+
   defp download({:hf, repository_id, opts}, filename, etag) do
     filename =
       if subdir = opts[:subdir] do
@@ -1275,6 +1307,10 @@ defmodule Bumblebee do
 
   defp normalize_repository!({:local, dir}) when is_binary(dir) do
     {:local, dir}
+  end
+
+  defp normalize_repository!({:s3, path}) when is_binary(path) do
+    {:s3, path}
   end
 
   defp normalize_repository!(other) do

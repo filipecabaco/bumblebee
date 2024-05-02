@@ -49,7 +49,9 @@ defmodule Bumblebee.MixProject do
       {:stb_image, "~> 0.6.0", only: :test},
       {:bypass, "~> 2.1", only: :test},
       {:ex_doc, "~> 0.28", only: :dev, runtime: false},
-      {:nx_signal, "~> 0.2.0"}
+      {:nx_signal, "~> 0.2.0"},
+      {:req, "~> 0.4.0"},
+      {:req_s3, "~> 0.1.0"}
     ]
   end
 
